@@ -5,3 +5,5 @@ node_modules/
 vite-dev.log
 vite-dev.err.log
 artifacts-home.png
+
+.vercel
