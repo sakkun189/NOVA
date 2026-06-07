@@ -2,6 +2,7 @@ import "./style.css";
 import {
   type ApiResult,
   type BootstrapResponse,
+  type NotificationDto,
   type PermissionDto,
   type TenantDto,
   type UserDto,
@@ -14,6 +15,14 @@ const state: { data: BootstrapResponse; userName: string; backendAvailable: bool
   data: structuredClone(mockBootstrap),
   userName: "モック管理者",
   backendAvailable: false
+};
+
+const wizardState = {
+  activeWizardId: "",
+  step: 1,
+  department: "営業本部",
+  startMonth: "2026-07",
+  notifyAdmins: true
 };
 
 const viewMeta: Record<string, { title: string; description: string }> = {
@@ -85,6 +94,7 @@ function renderShell(): void {
         </header>
         <section id="flashMessage" class="flash hidden"></section>
         <section id="viewsHost"></section>
+        <section id="wizardModalHost"></section>
       </main>
     </div>
   `;
@@ -195,7 +205,7 @@ function renderDashboard(): void {
       <article class="panel">
         <div class="panel-header"><h3>直近通知</h3></div>
         <div class="list">
-          ${data.notifications.map((n) => `<div class="list-item"><h4>${escapeHtml(n.title)}</h4><p>${escapeHtml(n.summary)}</p><small>${n.publishedAt} | ${n.app}</small></div>`).join("")}
+          ${data.notifications.map(renderNotificationCard).join("")}
         </div>
       </article>
       <article class="panel">
@@ -206,6 +216,16 @@ function renderDashboard(): void {
       </article>
     </div>
   `;
+
+  document.querySelectorAll<HTMLElement>("[data-wizard-id]").forEach((element) => {
+    element.onclick = () => openWizard(element.dataset.wizardId ?? "");
+    element.onkeydown = (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openWizard(element.dataset.wizardId ?? "");
+      }
+    };
+  });
 }
 
 function renderTenantView(): void {
@@ -410,6 +430,179 @@ function renderResetForm(): void {
 
     rerenderAfterMutation();
   };
+}
+
+function renderNotificationCard(notification: NotificationDto): string {
+  const clickableClass = notification.wizardId ? " notification-card-clickable" : "";
+  return `
+    <div class="list-item notification-card${clickableClass}" ${notification.wizardId ? `data-wizard-id="${escapeHtml(notification.wizardId)}" role="button" tabindex="0"` : ""}>
+      <div class="notification-head">
+        <h4>${escapeHtml(notification.title)}</h4>
+        <span class="badge ${notification.isRead ? "info" : "success"}">${notification.isRead ? "既読" : "未読"}</span>
+      </div>
+      <p>${escapeHtml(notification.summary)}</p>
+      <small>${notification.publishedAt} | ${notification.app}</small>
+      ${notification.actionLabel && notification.wizardId ? `
+        <div class="notification-actions">
+          <span class="inline-action">${escapeHtml(notification.actionLabel)}</span>
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+function openWizard(wizardId: string): void {
+  if (!wizardId) {
+    return;
+  }
+  wizardState.activeWizardId = wizardId;
+  wizardState.step = 1;
+  wizardState.department = "営業本部";
+  wizardState.startMonth = "2026-07";
+  wizardState.notifyAdmins = true;
+  renderWizardModal();
+}
+
+function closeWizard(): void {
+  wizardState.activeWizardId = "";
+  renderWizardModal();
+}
+
+function renderWizardModal(): void {
+  const host = document.getElementById("wizardModalHost") as HTMLElement;
+  if (!wizardState.activeWizardId) {
+    host.innerHTML = "";
+    return;
+  }
+
+  host.innerHTML = `
+    <div class="wizard-overlay">
+      <div class="wizard-modal">
+        <div class="panel-header">
+          <div>
+            <h3>AI需要予測 初期設定ウィザード</h3>
+            <p class="subtle">ステップ ${wizardState.step} / 3</p>
+          </div>
+          <button type="button" class="ghost" id="wizardCloseButton">閉じる</button>
+        </div>
+        ${renderWizardStep()}
+      </div>
+    </div>
+  `;
+
+  (document.getElementById("wizardCloseButton") as HTMLButtonElement).onclick = closeWizard;
+
+  if (wizardState.step === 1) {
+    (document.getElementById("wizardDepartment") as HTMLSelectElement).onchange = (event) => {
+      wizardState.department = (event.target as HTMLSelectElement).value;
+    };
+    (document.getElementById("wizardNextStep") as HTMLButtonElement).onclick = () => {
+      wizardState.step = 2;
+      renderWizardModal();
+    };
+    return;
+  }
+
+  if (wizardState.step === 2) {
+    (document.getElementById("wizardStartMonth") as HTMLInputElement).onchange = (event) => {
+      wizardState.startMonth = (event.target as HTMLInputElement).value;
+    };
+    (document.getElementById("wizardNotifyAdmins") as HTMLInputElement).onchange = (event) => {
+      wizardState.notifyAdmins = (event.target as HTMLInputElement).checked;
+    };
+    (document.getElementById("wizardPrevStep") as HTMLButtonElement).onclick = () => {
+      wizardState.step = 1;
+      renderWizardModal();
+    };
+    (document.getElementById("wizardNextStep") as HTMLButtonElement).onclick = () => {
+      wizardState.step = 3;
+      renderWizardModal();
+    };
+    return;
+  }
+
+  (document.getElementById("wizardPrevStep") as HTMLButtonElement).onclick = () => {
+    wizardState.step = 2;
+    renderWizardModal();
+  };
+  (document.getElementById("wizardFinish") as HTMLButtonElement).onclick = () => {
+    state.data.operationLogs.unshift({
+      at: nowLabel(),
+      userName: state.userName,
+      app: "NOVA",
+      feature: "通知",
+      eventName: "AI需要予測 初期設定ウィザード完了",
+      result: "成功",
+      targetId: "NTF-003"
+    });
+    const target = state.data.notifications.find((item) => item.id === "NTF-003");
+    if (target) {
+      target.isRead = true;
+    }
+    showFlash("AI需要予測の初期設定ウィザードを完了しました。");
+    closeWizard();
+    renderDashboard();
+    renderOperationLogs();
+  };
+}
+
+function renderWizardStep(): string {
+  if (wizardState.step === 1) {
+    return `
+      <div class="wizard-body stacked-form">
+        <div class="wizard-summary">対象部門と利用開始アプリを選択します。</div>
+        <label>
+          <span>対象部門</span>
+          <select id="wizardDepartment">
+            ${state.data.masterData.departments.map((department) => `<option value="${escapeHtml(department)}" ${department === wizardState.department ? "selected" : ""}>${escapeHtml(department)}</option>`).join("")}
+          </select>
+        </label>
+        <label>
+          <span>対象機能</span>
+          <input type="text" value="AI需要予測" disabled>
+        </label>
+        <div class="form-actions">
+          <button type="button" class="primary" id="wizardNextStep">次へ</button>
+        </div>
+      </div>
+    `;
+  }
+
+  if (wizardState.step === 2) {
+    return `
+      <div class="wizard-body stacked-form">
+        <div class="wizard-summary">初期データの適用期間と通知条件を設定します。</div>
+        <label>
+          <span>予測開始月</span>
+          <input id="wizardStartMonth" type="month" value="${escapeHtml(wizardState.startMonth)}">
+        </label>
+        <label class="checkbox">
+          <input id="wizardNotifyAdmins" type="checkbox" ${wizardState.notifyAdmins ? "checked" : ""}>
+          <span>設定完了時にテナント管理者へ通知する</span>
+        </label>
+        <div class="form-actions">
+          <button type="button" class="ghost" id="wizardPrevStep">戻る</button>
+          <button type="button" class="primary" id="wizardNextStep">確認へ</button>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="wizard-body stacked-form">
+      <div class="wizard-summary">設定内容を確認して完了します。</div>
+      <div class="detail-grid">
+        <div class="detail-item"><span>対象部門</span><strong>${escapeHtml(wizardState.department)}</strong></div>
+        <div class="detail-item"><span>対象機能</span><strong>AI需要予測</strong></div>
+        <div class="detail-item"><span>予測開始月</span><strong>${escapeHtml(wizardState.startMonth)}</strong></div>
+        <div class="detail-item"><span>管理者通知</span><strong>${wizardState.notifyAdmins ? "送信する" : "送信しない"}</strong></div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="ghost" id="wizardPrevStep">戻る</button>
+        <button type="button" class="primary" id="wizardFinish">設定を完了</button>
+      </div>
+    </div>
+  `;
 }
 
 function renderRoleAccess(): void {

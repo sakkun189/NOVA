@@ -71,6 +71,7 @@ public sealed class MockDataService
 
         _notifications =
         [
+            new NotificationDto("NTF-003", "新機能リリース: AI需要予測 初期設定ウィザード", "リリース", "NOVA", "2026-06-08 10:00", false, "AI需要予測の利用開始に向けて、対象部門、初期データ範囲、通知先を段階的に設定できるウィザードを追加しました。", "設定を開始", "ai-demand-forecast"),
             new NotificationDto("NTF-001", "新機能リリース: 承認フロー改善", "リリース", "NOVA", "2026-06-07 09:00", false, "NOVA に新しい承認ステップ設定機能を追加しました。"),
             new NotificationDto("NTF-002", "計画メンテナンスのお知らせ", "メンテナンス", "共通", "2026-06-06 15:30", true, "2026-06-10 22:00 からメンテナンスを実施します。")
         ];
@@ -283,7 +284,9 @@ public sealed record NotificationDto(
     string App,
     string PublishedAt,
     bool IsRead,
-    string Summary);
+    string Summary,
+    string? ActionLabel = null,
+    string? WizardId = null);
 
 public sealed record OperationLogDto(
     string At,

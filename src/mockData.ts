@@ -59,6 +59,8 @@ export interface NotificationDto {
   publishedAt: string;
   isRead: boolean;
   summary: string;
+  actionLabel?: string;
+  wizardId?: string;
 }
 
 export interface OperationLogDto {
@@ -193,6 +195,17 @@ export const mockBootstrap: BootstrapResponse = {
     { id: "perm.rbac.view", category: "権限管理", name: "ロール、権限定義参照", description: "RBAC の定義と割当状況を確認する。" }
   ],
   notifications: [
+    {
+      id: "NTF-003",
+      title: "新機能リリース: AI需要予測 初期設定ウィザード",
+      type: "リリース",
+      app: "NOVA",
+      publishedAt: "2026-06-08 10:00",
+      isRead: false,
+      summary: "AI需要予測の利用開始に向けて、対象部門、初期データ範囲、通知先を段階的に設定できるウィザードを追加しました。",
+      actionLabel: "設定を開始",
+      wizardId: "ai-demand-forecast"
+    },
     { id: "NTF-001", title: "新機能リリース: 承認フロー改善", type: "リリース", app: "NOVA", publishedAt: "2026-06-07 09:00", isRead: false, summary: "NOVA に新しい承認ステップ設定機能を追加しました。" },
     { id: "NTF-002", title: "計画メンテナンスのお知らせ", type: "メンテナンス", app: "共通", publishedAt: "2026-06-06 15:30", isRead: true, summary: "2026-06-10 22:00 からメンテナンスを実施します。" }
   ],

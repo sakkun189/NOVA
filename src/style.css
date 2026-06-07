@@ -290,6 +290,45 @@ button:hover {
   margin: 0 0 6px;
 }
 
+.notification-card {
+  display: grid;
+  gap: 10px;
+}
+
+.notification-card-clickable {
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.notification-card-clickable:hover {
+  transform: translateY(-1px);
+  border-color: rgba(31, 111, 120, 0.28);
+  box-shadow: 0 10px 24px rgba(31, 111, 120, 0.08);
+}
+
+.notification-card-clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.notification-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.notification-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.inline-action {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -449,6 +488,37 @@ th {
   margin: 6px 0 0;
   color: var(--muted);
   font-size: 0.84rem;
+}
+
+.wizard-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 41, 55, 0.38);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  z-index: 30;
+}
+
+.wizard-modal {
+  width: min(720px, 100%);
+  background: rgba(255, 253, 248, 0.98);
+  border: 1px solid rgba(222, 213, 199, 0.9);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+.wizard-body {
+  margin-top: 8px;
+}
+
+.wizard-summary {
+  padding: 12px 14px;
+  background: rgba(31, 111, 120, 0.08);
+  border: 1px solid rgba(31, 111, 120, 0.14);
+  border-radius: 12px;
+  color: var(--ink);
 }
 
 .rbac-matrix th,
