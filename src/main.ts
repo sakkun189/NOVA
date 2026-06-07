@@ -2,6 +2,7 @@ import "./style.css";
 import {
   type ApiResult,
   type BootstrapResponse,
+  type PermissionDto,
   type TenantDto,
   type UserDto,
   mockBootstrap
@@ -20,6 +21,7 @@ const viewMeta: Record<string, { title: string; description: string }> = {
   "tenant-view": { title: "テナント照会", description: "契約情報と利用状況を確認します。" },
   "tenant-edit": { title: "テナント編集", description: "テナント設定を更新します。" },
   "user-register": { title: "エンドユーザ登録", description: "新規利用者を登録します。" },
+  "role-access": { title: "ロール/権限管理", description: "RBAC に基づくロール定義と権限割当を確認します。" },
   "password-reset": { title: "パスワードリセット", description: "対象ユーザに再設定案内を送ります。" },
   "operation-logs": { title: "操作ログ", description: "主要な管理操作を追跡します。" },
   "login-logs": { title: "ログインログ", description: "ログイン履歴と失敗理由を確認します。" },
@@ -131,6 +133,7 @@ function renderAppViews(): void {
     <section id="tenant-view" class="view"></section>
     <section id="tenant-edit" class="view"></section>
     <section id="user-register" class="view"></section>
+    <section id="role-access" class="view"></section>
     <section id="password-reset" class="view"></section>
     <section id="operation-logs" class="view"></section>
     <section id="login-logs" class="view"></section>
@@ -146,6 +149,7 @@ function renderAppViews(): void {
   renderTenantView();
   renderTenantForm();
   renderUserForm();
+  renderRoleAccess();
   renderResetForm();
   renderOperationLogs();
   renderLoginLogs();
@@ -178,10 +182,10 @@ function renderDashboard(): void {
       <div>
         <div class="eyebrow">OVERVIEW</div>
         <h3>${escapeHtml(data.tenant.name)}</h3>
-        <p>${escapeHtml(`${data.tenant.status} | 契約プラン: ${data.tenant.plan} | 利用ユーザ数: ${data.tenant.userCount}`)}</p>
+        <p>${escapeHtml(`${data.tenant.status} | 契約プラン: ${data.tenant.plan} | 現在登録数: ${data.tenant.currentUserCount}`)}</p>
       </div>
       <div class="hero-stats">
-        ${summaryCard("利用ユーザ", `${data.tenant.userCount}`)}
+        ${summaryCard("現在登録数", `${data.tenant.currentUserCount}`)}
         ${summaryCard("重大エラー", `${criticalCount}`)}
         ${summaryCard("未読通知", `${unreadNotifications}`)}
         ${summaryCard("直近ログイン", `${data.loginLogs.length}`)}
@@ -206,103 +210,54 @@ function renderDashboard(): void {
 
 function renderTenantView(): void {
   const tenant = state.data.tenant;
-  const details = [
+  const contractDetails = [
     ["テナントID", tenant.id],
     ["テナント名", tenant.name],
     ["契約ステータス", tenant.status],
     ["ベンダとの契約日", tenant.contractDate],
     ["テナント利用開始日", tenant.startDate],
     ["契約プラン", tenant.plan],
+    ["ユーザ登録上限数", `${tenant.userLimit}`],
+    ["現在登録数", `${tenant.currentUserCount}`],
+    ["オプション契約一覧", tenant.optionContracts.join("、")],
+    ["最終更新", `${tenant.updatedAt} / ${tenant.updatedBy}`]
+  ];
+  const usageDetails = [
     ["NOVA利用状況", tenant.novaUsage.statusText],
     ["GOM利用状況", tenant.gomUsage.statusText],
     ["管理者名", tenant.adminName],
-    ["管理者メールアドレス", tenant.adminEmail],
-    ["利用ユーザ数", `${tenant.userCount}`],
-    ["最終更新", `${tenant.updatedAt} / ${tenant.updatedBy}`]
+    ["管理者メールアドレス", tenant.adminEmail]
   ];
 
   (document.getElementById("tenant-view") as HTMLElement).innerHTML = `
-    <article class="panel">
-      <div class="panel-header"><h3>テナント情報</h3></div>
-      <div class="detail-grid">
-        ${details.map(([label, value]) => `<div class="detail-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}
-      </div>
-    </article>
+    <div class="grid two-col tenant-sections">
+      <article class="panel">
+        <div class="panel-header"><h3>契約情報</h3></div>
+        <div class="detail-grid">
+          ${contractDetails.map(([label, value]) => `<div class="detail-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-header"><h3>利用情報</h3></div>
+        <div class="detail-grid">
+          ${usageDetails.map(([label, value]) => `<div class="detail-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}
+        </div>
+      </article>
+    </div>
   `;
 }
 
 function renderTenantForm(): void {
-  const data = state.data;
-  const tenant = data.tenant;
   const view = document.getElementById("tenant-edit") as HTMLElement;
   view.innerHTML = `
     <article class="panel">
       <div class="panel-header"><h3>テナント情報編集</h3></div>
-      <form id="tenantForm" class="stacked-form two-up">
-        ${selectField("tenantStatus", "契約ステータス", data.masterData.tenantStatuses, tenant.status)}
-        ${inputField("contractDate", "ベンダとの契約日", "date", tenant.contractDate)}
-        ${inputField("startDate", "テナント利用開始日", "date", tenant.startDate)}
-        ${selectField("plan", "契約プラン", data.masterData.plans, tenant.plan)}
-        ${inputField("novaUsage", "NOVA利用設定", "text", tenant.novaUsage.statusText)}
-        ${inputField("gomUsage", "GOM利用設定", "text", tenant.gomUsage.statusText)}
-        ${inputField("adminName", "テナント管理者名", "text", tenant.adminName)}
-        ${inputField("adminEmail", "テナント管理者メールアドレス", "email", tenant.adminEmail)}
-        <div class="form-actions full"><button type="submit" class="primary">保存</button></div>
-      </form>
+      <div class="empty-state">
+        <h4>現在、テナント側で編集できる項目はありません</h4>
+        <p>契約情報および契約ステータスはベンダ側で管理します。利用情報も現時点では照会のみを対象とします。</p>
+      </div>
     </article>
   `;
-
-  (document.getElementById("tenantForm") as HTMLFormElement).onsubmit = async (event) => {
-    event.preventDefault();
-    const payload = {
-      status: valueOf("tenantStatus"),
-      contractDate: valueOf("contractDate"),
-      startDate: valueOf("startDate"),
-      plan: valueOf("plan"),
-      novaUsage: valueOf("novaUsage"),
-      gomUsage: valueOf("gomUsage"),
-      adminName: valueOf("adminName"),
-      adminEmail: valueOf("adminEmail")
-    };
-
-    if (state.backendAvailable) {
-      const response = await fetch("/api/tenant", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const result = await response.json() as ApiResult<TenantDto>;
-      state.data.tenant = result.data;
-      showFlash(result.message);
-    } else {
-      state.data.tenant = {
-        ...state.data.tenant,
-        status: payload.status,
-        contractDate: payload.contractDate,
-        startDate: payload.startDate,
-        plan: payload.plan,
-        novaUsage: { ...state.data.tenant.novaUsage, statusText: payload.novaUsage },
-        gomUsage: { ...state.data.tenant.gomUsage, statusText: payload.gomUsage },
-        adminName: payload.adminName,
-        adminEmail: payload.adminEmail,
-        updatedAt: nowLabel(),
-        updatedBy: state.userName
-      };
-      state.data.operationLogs.unshift({
-        at: nowLabel(),
-        userName: state.userName,
-        app: "共通",
-        feature: "テナント管理",
-        eventName: "テナント更新",
-        result: "成功",
-        targetId: state.data.tenant.id
-      });
-      showFlash("フロントモック上でテナント情報を更新しました。");
-    }
-
-    rerenderAfterMutation();
-    changeView("tenant-view");
-  };
 }
 
 function renderUserForm(): void {
@@ -364,7 +319,7 @@ function renderUserForm(): void {
         active: true
       };
       state.data.users.unshift(newUser);
-      state.data.tenant.userCount += 1;
+      state.data.tenant.currentUserCount += 1;
       state.data.operationLogs.unshift({
         at: nowLabel(),
         userName: state.userName,
@@ -455,6 +410,109 @@ function renderResetForm(): void {
 
     rerenderAfterMutation();
   };
+}
+
+function renderRoleAccess(): void {
+  const view = document.getElementById("role-access") as HTMLElement;
+  const roles = withDerivedRoleCounts(state.data);
+  const permissions = state.data.permissions;
+  const groupedPermissions = groupPermissionsByCategory(permissions);
+
+  view.innerHTML = `
+    <div class="grid two-col rbac-top">
+      <article class="panel">
+        <div class="panel-header"><h3>ロール定義</h3></div>
+        <div class="list role-list">
+          ${roles.map((role) => `
+            <div class="list-item role-card">
+              <div class="role-card-head">
+                <div>
+                  <h4>${escapeHtml(role.name)}</h4>
+                  <small>${escapeHtml(role.scope)}</small>
+                </div>
+                <span class="badge info">${role.memberCount}名</span>
+              </div>
+              <p>${escapeHtml(role.description)}</p>
+              <small>付与権限数: ${role.permissionIds.length}</small>
+            </div>
+          `).join("")}
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-header"><h3>権限カタログ</h3></div>
+        <div class="permission-groups">
+          ${Object.entries(groupedPermissions).map(([category, items]) => `
+            <section class="permission-group">
+              <h4>${escapeHtml(category)}</h4>
+              <div class="permission-items">
+                ${items.map((permission) => `
+                  <div class="permission-item">
+                    <strong>${escapeHtml(permission.name)}</strong>
+                    <p>${escapeHtml(permission.description)}</p>
+                  </div>
+                `).join("")}
+              </div>
+            </section>
+          `).join("")}
+        </div>
+      </article>
+    </div>
+    <article class="panel">
+      <div class="panel-header"><h3>ロール別許可マトリクス</h3></div>
+      <div class="table-wrap">
+        <table class="rbac-matrix">
+          <thead>
+            <tr>
+              <th>権限</th>
+              ${roles.map((role) => `<th>${escapeHtml(role.name)}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${permissions.map((permission) => `
+              <tr>
+                <td>
+                  <strong>${escapeHtml(permission.name)}</strong>
+                  <div class="table-subtext">${escapeHtml(permission.category)}</div>
+                </td>
+                ${roles.map((role) => `
+                  <td class="matrix-cell">
+                    ${role.permissionIds.includes(permission.id) ? '<span class="matrix-check allowed">●</span>' : '<span class="matrix-check denied">-</span>'}
+                  </td>
+                `).join("")}
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    </article>
+    <article class="panel">
+      <div class="panel-header"><h3>ロール割当ユーザ</h3></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ユーザ名</th>
+              <th>メールアドレス</th>
+              <th>所属</th>
+              <th>ロール</th>
+              <th>利用アプリ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${state.data.users.map((user) => `
+              <tr>
+                <td>${escapeHtml(user.name)}</td>
+                <td>${escapeHtml(user.email)}</td>
+                <td>${escapeHtml(user.department)}</td>
+                <td>${escapeHtml(user.role)}</td>
+                <td>${escapeHtml(user.apps.join(", "))}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  `;
 }
 
 function renderOperationLogs(): void {
@@ -559,6 +617,7 @@ function rerenderAfterMutation(): void {
   renderTenantView();
   renderTenantForm();
   renderUserForm();
+  renderRoleAccess();
   renderResetForm();
   renderOperationLogs();
   renderLoginLogs();
@@ -571,6 +630,16 @@ function summaryCard(label: string, value: string): string {
 
 function inputField(id: string, label: string, type: string, value: string): string {
   return `<label><span>${label}</span><input id="${id}" type="${type}" value="${escapeHtml(value)}" required></label>`;
+}
+
+function readOnlyField(label: string, value: string, note?: string): string {
+  return `
+    <label>
+      <span>${label}</span>
+      <input type="text" value="${escapeHtml(value)}" disabled>
+      ${note ? `<small class="field-note">${escapeHtml(note)}</small>` : ""}
+    </label>
+  `;
 }
 
 function selectField(id: string, label: string, options: string[], selected: string): string {
@@ -626,4 +695,21 @@ function nowLabel(): string {
   const hh = String(now.getHours()).padStart(2, "0");
   const mi = String(now.getMinutes()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+}
+
+function groupPermissionsByCategory(permissions: PermissionDto[]): Record<string, PermissionDto[]> {
+  return permissions.reduce<Record<string, PermissionDto[]>>((acc, permission) => {
+    if (!acc[permission.category]) {
+      acc[permission.category] = [];
+    }
+    acc[permission.category].push(permission);
+    return acc;
+  }, {});
+}
+
+function withDerivedRoleCounts(data: BootstrapResponse) {
+  return data.roles.map((role) => ({
+    ...role,
+    memberCount: data.users.filter((user) => user.role === role.name).length
+  }));
 }

@@ -14,6 +14,8 @@ public sealed class MockDataService
 
     private TenantDto _tenant;
     private readonly List<UserDto> _users;
+    private readonly List<RoleDto> _rbacRoles;
+    private readonly List<PermissionDto> _permissions;
     private readonly List<NotificationDto> _notifications;
     private readonly List<OperationLogDto> _operationLogs;
     private readonly List<LoginLogDto> _loginLogs;
@@ -28,11 +30,13 @@ public sealed class MockDataService
             "2026-04-01",
             "2026-04-15",
             "Enterprise",
+            200,
+            128,
+            ["加工モジュール", "AI需要予測"],
             new AppUsageDto("NOVA", true, "本番利用中"),
             new AppUsageDto("GOM", true, "一部部門で利用中"),
             "田中 花子",
             "tenant-admin@example.com",
-            128,
             "2026-06-07 18:20",
             "佐藤 次郎");
 
@@ -41,6 +45,28 @@ public sealed class MockDataService
             new UserDto("USR-001", "山田 太郎", "yamada@example.com", "営業本部", "課長", ["NOVA"], "承認者", true),
             new UserDto("USR-002", "鈴木 一郎", "suzuki@example.com", "情報システム部", "主任", ["NOVA", "GOM"], "管理者", true),
             new UserDto("USR-003", "高橋 美咲", "takahashi@example.com", "経理部", "担当", ["GOM"], "一般利用者", false)
+        ];
+
+        _permissions =
+        [
+            new PermissionDto("perm.app.login", "認証", "ログイン", "管理画面または対象アプリへログインする。"),
+            new PermissionDto("perm.app.view", "アプリ利用", "業務データ参照", "許可されたアプリでデータを参照する。"),
+            new PermissionDto("perm.profile.view", "プロフィール", "自分の利用情報参照", "自身のプロフィールや利用可能アプリを確認する。"),
+            new PermissionDto("perm.workflow.approve", "承認", "承認実行", "申請や取引データの承認処理を実行する。"),
+            new PermissionDto("perm.report.export", "帳票", "レポート出力", "レポートやCSVを出力する。"),
+            new PermissionDto("perm.user.register", "ユーザ管理", "エンドユーザ登録", "テナント内ユーザを新規登録する。"),
+            new PermissionDto("perm.user.reset-password", "ユーザ管理", "パスワードリセット", "対象ユーザの再設定案内を実行する。"),
+            new PermissionDto("perm.log.operation.view", "監査", "操作ログ参照", "操作ログを検索、閲覧する。"),
+            new PermissionDto("perm.log.login.view", "監査", "ログインログ参照", "ログイン履歴や失敗理由を確認する。"),
+            new PermissionDto("perm.error.view", "監視", "エラー監視参照", "エラー一覧と重大度を確認する。"),
+            new PermissionDto("perm.rbac.view", "権限管理", "ロール、権限定義参照", "RBAC の定義と割当状況を確認する。")
+        ];
+
+        _rbacRoles =
+        [
+            new RoleDto("ROLE-USER", "一般利用者", "アプリ利用", "自分に許可されたアプリを利用し、参照中心の操作を行う基本ロール。", 1, ["perm.app.login", "perm.app.view", "perm.profile.view"]),
+            new RoleDto("ROLE-APPROVER", "承認者", "業務承認", "一般利用者権限に加え、承認対象データの確認と承認操作を実行するロール。", 1, ["perm.app.login", "perm.app.view", "perm.profile.view", "perm.workflow.approve", "perm.report.export"]),
+            new RoleDto("ROLE-ADMIN", "管理者", "テナント運用", "エンドユーザ登録、パスワードリセット、ログ参照などテナント内の運用管理を担うロール。", 1, ["perm.app.login", "perm.app.view", "perm.profile.view", "perm.user.register", "perm.user.reset-password", "perm.log.operation.view", "perm.log.login.view", "perm.error.view", "perm.rbac.view"])
         ];
 
         _notifications =
@@ -78,6 +104,8 @@ public sealed class MockDataService
             return new BootstrapResponse(
                 _tenant,
                 _users.ToList(),
+                _rbacRoles.ToList(),
+                _permissions.ToList(),
                 _notifications.ToList(),
                 _operationLogs.ToList(),
                 _loginLogs.ToList(),
@@ -100,7 +128,6 @@ public sealed class MockDataService
         {
             _tenant = _tenant with
             {
-                Status = request.Status,
                 ContractDate = request.ContractDate,
                 StartDate = request.StartDate,
                 Plan = request.Plan,
@@ -140,7 +167,12 @@ public sealed class MockDataService
                 true);
 
             _users.Insert(0, newUser);
-            _tenant = _tenant with { UserCount = _tenant.UserCount + 1 };
+            _tenant = _tenant with { CurrentUserCount = _tenant.CurrentUserCount + 1 };
+            var roleIndex = _rbacRoles.FindIndex(x => x.Name == request.Role);
+            if (roleIndex >= 0)
+            {
+                _rbacRoles[roleIndex] = _rbacRoles[roleIndex] with { MemberCount = _rbacRoles[roleIndex].MemberCount + 1 };
+            }
 
             _operationLogs.Insert(0, new OperationLogDto(
                 DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
@@ -183,6 +215,8 @@ public sealed class MockDataService
 public sealed record BootstrapResponse(
     TenantDto Tenant,
     List<UserDto> Users,
+    List<RoleDto> Roles,
+    List<PermissionDto> Permissions,
     List<NotificationDto> Notifications,
     List<OperationLogDto> OperationLogs,
     List<LoginLogDto> LoginLogs,
@@ -206,11 +240,13 @@ public sealed record TenantDto(
     string ContractDate,
     string StartDate,
     string Plan,
+    int UserLimit,
+    int CurrentUserCount,
+    List<string> OptionContracts,
     AppUsageDto NovaUsage,
     AppUsageDto GomUsage,
     string AdminName,
     string AdminEmail,
-    int UserCount,
     string UpdatedAt,
     string UpdatedBy);
 
@@ -225,6 +261,20 @@ public sealed record UserDto(
     List<string> Apps,
     string Role,
     bool Active);
+
+public sealed record PermissionDto(
+    string Id,
+    string Category,
+    string Name,
+    string Description);
+
+public sealed record RoleDto(
+    string Id,
+    string Name,
+    string Scope,
+    string Description,
+    int MemberCount,
+    List<string> PermissionIds);
 
 public sealed record NotificationDto(
     string Id,
@@ -264,7 +314,6 @@ public sealed record ErrorLogDto(
     string Assignment);
 
 public sealed record TenantUpdateRequest(
-    string Status,
     string ContractDate,
     string StartDate,
     string Plan,
