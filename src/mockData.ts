@@ -33,6 +33,9 @@ export interface UserDto {
   apps: string[];
   role: string;
   active: boolean;
+  lastLoginAt: string;
+  createdAt: string;
+  lastPasswordResetAt: string;
 }
 
 export interface PermissionDto {
@@ -59,6 +62,9 @@ export interface NotificationDto {
   publishedAt: string;
   isRead: boolean;
   summary: string;
+  importance?: string;
+  body?: string;
+  needsAction?: boolean;
   actionLabel?: string;
   wizardId?: string;
 }
@@ -141,9 +147,9 @@ export const mockBootstrap: BootstrapResponse = {
     updatedBy: "佐藤 次郎"
   },
   users: [
-    { id: "USR-001", name: "山田 太郎", email: "yamada@example.com", department: "営業本部", title: "課長", apps: ["NOVA"], role: "承認者", active: true },
-    { id: "USR-002", name: "鈴木 一郎", email: "suzuki@example.com", department: "情報システム部", title: "主任", apps: ["NOVA", "GOM"], role: "管理者", active: true },
-    { id: "USR-003", name: "高橋 美咲", email: "takahashi@example.com", department: "経理部", title: "担当", apps: ["GOM"], role: "一般利用者", active: false }
+    { id: "USR-001", name: "山田 太郎", email: "yamada@example.com", department: "営業本部", title: "課長", apps: ["NOVA"], role: "承認者", active: true, lastLoginAt: "2026-06-07 17:55", createdAt: "2026-04-20", lastPasswordResetAt: "2026-05-28 09:10" },
+    { id: "USR-002", name: "鈴木 一郎", email: "suzuki@example.com", department: "情報システム部", title: "主任", apps: ["NOVA", "GOM"], role: "管理者", active: true, lastLoginAt: "2026-06-07 18:10", createdAt: "2026-04-15", lastPasswordResetAt: "2026-05-10 13:40" },
+    { id: "USR-003", name: "高橋 美咲", email: "takahashi@example.com", department: "経理部", title: "担当", apps: ["GOM"], role: "一般利用者", active: false, lastLoginAt: "2026-05-30 08:42", createdAt: "2026-05-01", lastPasswordResetAt: "2026-06-07 16:48" }
   ],
   roles: [
     {
@@ -203,11 +209,14 @@ export const mockBootstrap: BootstrapResponse = {
       publishedAt: "2026-06-08 10:00",
       isRead: false,
       summary: "AI需要予測の利用開始に向けて、対象部門、初期データ範囲、通知先を段階的に設定できるウィザードを追加しました。",
+      importance: "高",
+      body: "AI需要予測オプションを契約済みのテナント向けに、初期設定ウィザードを提供開始しました。対象部門、予測開始月、管理者通知条件を設定することで、利用開始準備を短時間で完了できます。",
+      needsAction: true,
       actionLabel: "設定を開始",
       wizardId: "ai-demand-forecast"
     },
-    { id: "NTF-001", title: "新機能リリース: 承認フロー改善", type: "リリース", app: "NOVA", publishedAt: "2026-06-07 09:00", isRead: false, summary: "NOVA に新しい承認ステップ設定機能を追加しました。" },
-    { id: "NTF-002", title: "計画メンテナンスのお知らせ", type: "メンテナンス", app: "共通", publishedAt: "2026-06-06 15:30", isRead: true, summary: "2026-06-10 22:00 からメンテナンスを実施します。" }
+    { id: "NTF-001", title: "新機能リリース: 承認フロー改善", type: "リリース", app: "NOVA", publishedAt: "2026-06-07 09:00", isRead: false, summary: "NOVA に新しい承認ステップ設定機能を追加しました。", importance: "中", body: "承認段階を複数設定できるようになり、部門ごとの承認経路に対応しました。既存フローには影響せず、必要な場合のみ追加設定で利用できます。", needsAction: false },
+    { id: "NTF-002", title: "計画メンテナンスのお知らせ", type: "メンテナンス", app: "共通", publishedAt: "2026-06-06 15:30", isRead: true, summary: "2026-06-10 22:00 からメンテナンスを実施します。", importance: "高", body: "共通基盤の保守作業に伴い、2026-06-10 22:00 から 2026-06-11 00:00 の間、一部機能が利用しづらくなる可能性があります。", needsAction: true }
   ],
   operationLogs: [
     { at: "2026-06-07 18:01", userName: "鈴木 一郎", app: "NOVA", feature: "エンドユーザ管理", eventName: "ユーザ登録", result: "成功", targetId: "USR-004" },

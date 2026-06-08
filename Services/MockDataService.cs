@@ -42,9 +42,9 @@ public sealed class MockDataService
 
         _users =
         [
-            new UserDto("USR-001", "山田 太郎", "yamada@example.com", "営業本部", "課長", ["NOVA"], "承認者", true),
-            new UserDto("USR-002", "鈴木 一郎", "suzuki@example.com", "情報システム部", "主任", ["NOVA", "GOM"], "管理者", true),
-            new UserDto("USR-003", "高橋 美咲", "takahashi@example.com", "経理部", "担当", ["GOM"], "一般利用者", false)
+            new UserDto("USR-001", "山田 太郎", "yamada@example.com", "営業本部", "課長", ["NOVA"], "承認者", true, "2026-06-07 17:55", "2026-04-20", "2026-05-28 09:10"),
+            new UserDto("USR-002", "鈴木 一郎", "suzuki@example.com", "情報システム部", "主任", ["NOVA", "GOM"], "管理者", true, "2026-06-07 18:10", "2026-04-15", "2026-05-10 13:40"),
+            new UserDto("USR-003", "高橋 美咲", "takahashi@example.com", "経理部", "担当", ["GOM"], "一般利用者", false, "2026-05-30 08:42", "2026-05-01", "2026-06-07 16:48")
         ];
 
         _permissions =
@@ -71,9 +71,9 @@ public sealed class MockDataService
 
         _notifications =
         [
-            new NotificationDto("NTF-003", "新機能リリース: AI需要予測 初期設定ウィザード", "リリース", "NOVA", "2026-06-08 10:00", false, "AI需要予測の利用開始に向けて、対象部門、初期データ範囲、通知先を段階的に設定できるウィザードを追加しました。", "設定を開始", "ai-demand-forecast"),
-            new NotificationDto("NTF-001", "新機能リリース: 承認フロー改善", "リリース", "NOVA", "2026-06-07 09:00", false, "NOVA に新しい承認ステップ設定機能を追加しました。"),
-            new NotificationDto("NTF-002", "計画メンテナンスのお知らせ", "メンテナンス", "共通", "2026-06-06 15:30", true, "2026-06-10 22:00 からメンテナンスを実施します。")
+            new NotificationDto("NTF-003", "新機能リリース: AI需要予測 初期設定ウィザード", "リリース", "NOVA", "2026-06-08 10:00", false, "AI需要予測の利用開始に向けて、対象部門、初期データ範囲、通知先を段階的に設定できるウィザードを追加しました。", "高", "AI需要予測オプションを契約済みのテナント向けに、初期設定ウィザードを提供開始しました。対象部門、予測開始月、管理者通知条件を設定することで、利用開始準備を短時間で完了できます。", true, "設定を開始", "ai-demand-forecast"),
+            new NotificationDto("NTF-001", "新機能リリース: 承認フロー改善", "リリース", "NOVA", "2026-06-07 09:00", false, "NOVA に新しい承認ステップ設定機能を追加しました。", "中", "承認段階を複数設定できるようになり、部門ごとの承認経路に対応しました。既存フローには影響せず、必要な場合のみ追加設定で利用できます。", false),
+            new NotificationDto("NTF-002", "計画メンテナンスのお知らせ", "メンテナンス", "共通", "2026-06-06 15:30", true, "2026-06-10 22:00 からメンテナンスを実施します。", "高", "共通基盤の保守作業に伴い、2026-06-10 22:00 から 2026-06-11 00:00 の間、一部機能が利用しづらくなる可能性があります。", true)
         ];
 
         _operationLogs =
@@ -165,7 +165,10 @@ public sealed class MockDataService
                 request.Title,
                 request.Apps,
                 request.Role,
-                true);
+                true,
+                "-",
+                DateTime.Now.ToString("yyyy-MM-dd"),
+                "-");
 
             _users.Insert(0, newUser);
             _tenant = _tenant with { CurrentUserCount = _tenant.CurrentUserCount + 1 };
@@ -261,7 +264,10 @@ public sealed record UserDto(
     string Title,
     List<string> Apps,
     string Role,
-    bool Active);
+    bool Active,
+    string LastLoginAt,
+    string CreatedAt,
+    string LastPasswordResetAt);
 
 public sealed record PermissionDto(
     string Id,
@@ -285,6 +291,9 @@ public sealed record NotificationDto(
     string PublishedAt,
     bool IsRead,
     string Summary,
+    string? Importance = null,
+    string? Body = null,
+    bool NeedsAction = false,
     string? ActionLabel = null,
     string? WizardId = null);
 

@@ -25,11 +25,18 @@ const wizardState = {
   notifyAdmins: true
 };
 
+const uiState = {
+  selectedNotificationId: "NTF-003"
+};
+
 const viewMeta: Record<string, { title: string; description: string }> = {
   dashboard: { title: "ダッシュボード", description: "管理状況の要約を確認します。" },
   "tenant-view": { title: "テナント照会", description: "契約情報と利用状況を確認します。" },
+  "contract-license": { title: "契約/ライセンス利用状況", description: "契約内容、上限数、オプション利用状況を確認します。" },
   "tenant-edit": { title: "テナント編集", description: "テナント設定を更新します。" },
+  "user-list": { title: "エンドユーザ一覧", description: "登録済みユーザの状態、ロール、利用アプリを確認します。" },
   "user-register": { title: "エンドユーザ登録", description: "新規利用者を登録します。" },
+  "notification-list": { title: "通知一覧", description: "ベンダ通知を一覧確認し、詳細や設定導線を確認します。" },
   "role-access": { title: "ロール/権限管理", description: "RBAC に基づくロール定義と権限割当を確認します。" },
   "password-reset": { title: "パスワードリセット", description: "対象ユーザに再設定案内を送ります。" },
   "operation-logs": { title: "操作ログ", description: "主要な管理操作を追跡します。" },
@@ -141,8 +148,11 @@ function renderAppViews(): void {
   host.innerHTML = `
     <section id="dashboard" class="view active-view"></section>
     <section id="tenant-view" class="view"></section>
+    <section id="contract-license" class="view"></section>
     <section id="tenant-edit" class="view"></section>
+    <section id="user-list" class="view"></section>
     <section id="user-register" class="view"></section>
+    <section id="notification-list" class="view"></section>
     <section id="role-access" class="view"></section>
     <section id="password-reset" class="view"></section>
     <section id="operation-logs" class="view"></section>
@@ -157,8 +167,11 @@ function renderAppViews(): void {
   renderModeBadge();
   renderDashboard();
   renderTenantView();
+  renderContractLicense();
   renderTenantForm();
+  renderUserList();
   renderUserForm();
+  renderNotificationList();
   renderRoleAccess();
   renderResetForm();
   renderOperationLogs();
@@ -280,6 +293,134 @@ function renderTenantForm(): void {
   `;
 }
 
+function renderContractLicense(): void {
+  const tenant = state.data.tenant;
+  const remaining = tenant.userLimit - tenant.currentUserCount;
+  const appUsage = state.data.masterData.apps.map((app) => ({
+    app,
+    users: state.data.users.filter((user) => user.apps.includes(app)).length,
+    status: app === "NOVA" ? tenant.novaUsage.statusText : tenant.gomUsage.statusText
+  }));
+
+  (document.getElementById("contract-license") as HTMLElement).innerHTML = `
+    <div class="grid contract-layout">
+      <article class="panel">
+        <div class="panel-header"><h3>契約サマリ</h3></div>
+        <div class="hero-stats">
+          ${summaryCard("契約プラン", tenant.plan)}
+          ${summaryCard("上限数", `${tenant.userLimit}`)}
+          ${summaryCard("現在登録数", `${tenant.currentUserCount}`)}
+          ${summaryCard("残数", `${remaining}`)}
+        </div>
+        <div class="detail-grid contract-meta">
+          <div class="detail-item"><span>契約ステータス</span><strong>${escapeHtml(tenant.status)}</strong></div>
+          <div class="detail-item"><span>ベンダとの契約日</span><strong>${tenant.contractDate}</strong></div>
+          <div class="detail-item"><span>テナント利用開始日</span><strong>${tenant.startDate}</strong></div>
+          <div class="detail-item"><span>超過見込み</span><strong>${remaining <= 20 ? "注意" : "問題なし"}</strong></div>
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-header"><h3>オプション契約</h3></div>
+        <div class="list">
+          ${tenant.optionContracts.map((option) => `
+            <div class="list-item option-item">
+              <h4>${escapeHtml(option)}</h4>
+              <p>${option === "AI需要予測" ? "初期設定ウィザードを利用して導入準備を進められます。" : "対象業務向けの追加機能として契約済みです。"}</p>
+              <small>${option === "AI需要予測" ? "初期設定: 実施中" : "初期設定: 利用中"}</small>
+            </div>
+          `).join("")}
+        </div>
+      </article>
+    </div>
+    <article class="panel">
+      <div class="panel-header"><h3>アプリ別利用状況</h3></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>アプリ</th>
+              <th>利用状況</th>
+              <th>利用中ユーザ数</th>
+              <th>登録率</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${appUsage.map((item) => `
+              <tr>
+                <td>${escapeHtml(item.app)}</td>
+                <td>${escapeHtml(item.status)}</td>
+                <td>${item.users}</td>
+                <td>${Math.round((item.users / Math.max(tenant.currentUserCount, 1)) * 100)}%</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  `;
+}
+
+function renderUserList(): void {
+  const view = document.getElementById("user-list") as HTMLElement;
+  view.innerHTML = `
+    <article class="panel">
+      <div class="panel-header"><h3>エンドユーザ一覧</h3></div>
+      <div class="filters">
+        ${selectField("userListAppFilter", "利用アプリ", ["すべて", ...state.data.masterData.apps], "すべて")}
+        ${selectField("userListRoleFilter", "ロール", ["すべて", ...state.data.masterData.roles], "すべて")}
+        ${selectField("userListStatusFilter", "アカウント状態", ["すべて", "有効", "無効"], "すべて")}
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ユーザID</th>
+              <th>名前</th>
+              <th>メールアドレス</th>
+              <th>部署、所属</th>
+              <th>利用アプリ</th>
+              <th>ロール</th>
+              <th>状態</th>
+              <th>最終ログイン</th>
+              <th>登録日</th>
+              <th>最終リセット</th>
+            </tr>
+          </thead>
+          <tbody id="userListBody"></tbody>
+        </table>
+      </div>
+    </article>
+  `;
+
+  document.querySelectorAll("#user-list select").forEach((x) => x.addEventListener("change", fillUserListRows));
+  fillUserListRows();
+}
+
+function fillUserListRows(): void {
+  const appFilter = valueOf("userListAppFilter", "すべて");
+  const roleFilter = valueOf("userListRoleFilter", "すべて");
+  const statusFilter = valueOf("userListStatusFilter", "すべて");
+
+  (document.getElementById("userListBody") as HTMLElement).innerHTML = state.data.users
+    .filter((user) => appFilter === "すべて" || user.apps.includes(appFilter))
+    .filter((user) => roleFilter === "すべて" || user.role === roleFilter)
+    .filter((user) => statusFilter === "すべて" || (statusFilter === "有効" ? user.active : !user.active))
+    .map((user) => `
+      <tr>
+        <td>${user.id}</td>
+        <td>${escapeHtml(user.name)}</td>
+        <td>${escapeHtml(user.email)}</td>
+        <td>${escapeHtml(user.department)}</td>
+        <td>${escapeHtml(user.apps.join(", "))}</td>
+        <td>${escapeHtml(user.role)}</td>
+        <td><span class="badge ${user.active ? "success" : "warning"}">${user.active ? "有効" : "無効"}</span></td>
+        <td>${user.lastLoginAt}</td>
+        <td>${user.createdAt}</td>
+        <td>${user.lastPasswordResetAt}</td>
+      </tr>
+    `).join("");
+}
+
 function renderUserForm(): void {
   const data = state.data;
   const view = document.getElementById("user-register") as HTMLElement;
@@ -336,7 +477,10 @@ function renderUserForm(): void {
         title: payload.title,
         apps: payload.apps,
         role: payload.role,
-        active: true
+        active: true,
+        lastLoginAt: "-",
+        createdAt: nowLabel().slice(0, 10),
+        lastPasswordResetAt: "-"
       };
       state.data.users.unshift(newUser);
       state.data.tenant.currentUserCount += 1;
@@ -445,6 +589,102 @@ function renderNotificationCard(notification: NotificationDto): string {
       ${notification.actionLabel && notification.wizardId ? `
         <div class="notification-actions">
           <span class="inline-action">${escapeHtml(notification.actionLabel)}</span>
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+function renderNotificationList(): void {
+  const view = document.getElementById("notification-list") as HTMLElement;
+  const selected = getSelectedNotification();
+  view.innerHTML = `
+    <div class="grid notification-layout">
+      <article class="panel">
+        <div class="panel-header"><h3>通知一覧</h3></div>
+        <div class="filters">
+          ${selectField("notificationTypeFilter", "通知種別", ["すべて", "リリース", "メンテナンス"], "すべて")}
+          ${selectField("notificationReadFilter", "既読状態", ["すべて", "未読", "既読"], "すべて")}
+        </div>
+        <div class="list" id="notificationListCards"></div>
+      </article>
+      <article class="panel">
+        <div class="panel-header"><h3>通知詳細</h3></div>
+        <div id="notificationDetailPanel">
+          ${selected ? renderNotificationDetail(selected) : `<div class="empty-state"><h4>通知を選択してください</h4><p>左側の通知一覧から確認したい通知を選ぶと詳細が表示されます。</p></div>`}
+        </div>
+      </article>
+    </div>
+  `;
+
+  document.querySelectorAll("#notification-list select").forEach((x) => x.addEventListener("change", fillNotificationList));
+  fillNotificationList();
+}
+
+function fillNotificationList(): void {
+  const typeFilter = valueOf("notificationTypeFilter", "すべて");
+  const readFilter = valueOf("notificationReadFilter", "すべて");
+  const container = document.getElementById("notificationListCards") as HTMLElement;
+
+  container.innerHTML = state.data.notifications
+    .filter((notification) => typeFilter === "すべて" || notification.type === typeFilter)
+    .filter((notification) => readFilter === "すべて" || (readFilter === "未読" ? !notification.isRead : notification.isRead))
+    .map((notification) => `
+      <div class="list-item notification-row ${notification.id === uiState.selectedNotificationId ? "selected-row" : ""}" data-notification-id="${notification.id}">
+        <div class="notification-head">
+          <h4>${escapeHtml(notification.title)}</h4>
+          <span class="badge ${notification.isRead ? "info" : "success"}">${notification.isRead ? "既読" : "未読"}</span>
+        </div>
+        <p>${escapeHtml(notification.summary)}</p>
+        <small>${notification.publishedAt} | ${notification.type} | ${notification.app}</small>
+      </div>
+    `).join("");
+
+  document.querySelectorAll<HTMLElement>("[data-notification-id]").forEach((element) => {
+    element.onclick = () => {
+      uiState.selectedNotificationId = element.dataset.notificationId ?? "";
+      updateNotificationDetail();
+      fillNotificationList();
+    };
+  });
+}
+
+function updateNotificationDetail(): void {
+  const selected = getSelectedNotification();
+  (document.getElementById("notificationDetailPanel") as HTMLElement).innerHTML = selected
+    ? renderNotificationDetail(selected)
+    : `<div class="empty-state"><h4>通知を選択してください</h4><p>左側の通知一覧から確認したい通知を選ぶと詳細が表示されます。</p></div>`;
+
+  const actionButton = document.getElementById("notificationWizardButton") as HTMLButtonElement | null;
+  if (actionButton) {
+    actionButton.onclick = () => openWizard(actionButton.dataset.wizardId ?? "");
+  }
+}
+
+function renderNotificationDetail(notification: NotificationDto): string {
+  return `
+    <div class="stacked-form">
+      <div class="detail-grid">
+        <div class="detail-item"><span>通知種別</span><strong>${escapeHtml(notification.type)}</strong></div>
+        <div class="detail-item"><span>対象アプリ</span><strong>${escapeHtml(notification.app)}</strong></div>
+        <div class="detail-item"><span>配信日時</span><strong>${notification.publishedAt}</strong></div>
+        <div class="detail-item"><span>重要度</span><strong>${escapeHtml(notification.importance ?? "-")}</strong></div>
+      </div>
+      <div class="detail-item detail-block">
+        <span>通知概要</span>
+        <strong>${escapeHtml(notification.summary)}</strong>
+      </div>
+      <div class="detail-item detail-block">
+        <span>詳細内容</span>
+        <p>${escapeHtml(notification.body ?? notification.summary)}</p>
+      </div>
+      <div class="detail-item detail-block">
+        <span>対応要否</span>
+        <strong>${notification.needsAction ? "要対応" : "確認のみ"}</strong>
+      </div>
+      ${notification.wizardId && notification.actionLabel ? `
+        <div class="form-actions">
+          <button type="button" class="primary" id="notificationWizardButton" data-wizard-id="${escapeHtml(notification.wizardId)}">${escapeHtml(notification.actionLabel)}</button>
         </div>
       ` : ""}
     </div>
@@ -808,8 +1048,11 @@ function rerenderAfterMutation(): void {
   renderModeBadge();
   renderDashboard();
   renderTenantView();
+  renderContractLicense();
   renderTenantForm();
+  renderUserList();
   renderUserForm();
+  renderNotificationList();
   renderRoleAccess();
   renderResetForm();
   renderOperationLogs();
@@ -905,4 +1148,9 @@ function withDerivedRoleCounts(data: BootstrapResponse) {
     ...role,
     memberCount: data.users.filter((user) => user.role === role.name).length
   }));
+}
+
+function getSelectedNotification(): NotificationDto | undefined {
+  return state.data.notifications.find((notification) => notification.id === uiState.selectedNotificationId)
+    ?? state.data.notifications[0];
 }

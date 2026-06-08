@@ -257,6 +257,13 @@ button:hover {
   gap: 18px;
 }
 
+.grid.contract-layout,
+.grid.notification-layout {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 18px;
+}
+
 .panel {
   padding: 20px;
 }
@@ -329,6 +336,17 @@ button:hover {
   font-size: 0.9rem;
 }
 
+.notification-row {
+  cursor: pointer;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.notification-row:hover,
+.selected-row {
+  border-color: rgba(31, 111, 120, 0.28);
+  box-shadow: 0 8px 22px rgba(31, 111, 120, 0.08);
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -349,8 +367,21 @@ button:hover {
   font-size: 0.85rem;
 }
 
+.detail-block p {
+  margin: 8px 0 0;
+  line-height: 1.7;
+}
+
 .tenant-sections {
   align-items: start;
+}
+
+.contract-meta {
+  margin-top: 18px;
+}
+
+.option-item p {
+  margin: 8px 0;
 }
 
 .empty-state {
@@ -555,6 +586,8 @@ th {
   }
 
   .grid.two-col,
+  .grid.contract-layout,
+  .grid.notification-layout,
   .detail-grid,
   .two-up {
     grid-template-columns: 1fr;
