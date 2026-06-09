@@ -9,6 +9,7 @@ export interface AppUsageDto {
 export interface TenantDto {
   id: string;
   name: string;
+  imageUrl: string;
   status: string;
   contractDate: string;
   startDate: string;
@@ -72,19 +73,20 @@ export interface NotificationDto {
 export interface OperationLogDto {
   at: string;
   userName: string;
-  app: string;
-  feature: string;
-  eventName: string;
+  screenName: string;
+  actionName: string;
   result: string;
   targetId: string;
+  detail: string;
 }
 
 export interface LoginLogDto {
   at: string;
   userName: string;
-  app: string;
   result: string;
   ipAddress: string;
+  authMethod: string;
+  clientName: string;
   failureReason: string;
 }
 
@@ -107,6 +109,7 @@ export interface MasterDataDto {
   departments: string[];
   roles: string[];
   operationTypes: string[];
+  managementScreens: string[];
   errorSeverities: string[];
   errorStatuses: string[];
 }
@@ -132,6 +135,7 @@ export const mockBootstrap: BootstrapResponse = {
   tenant: {
     id: "TEN-001",
     name: "サンプル商事株式会社",
+    imageUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 480 280'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop stop-color='%231f6f78'/%3E%3Cstop offset='1' stop-color='%23d9a441'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='480' height='280' rx='28' fill='url(%23g)'/%3E%3Ccircle cx='390' cy='70' r='46' fill='rgba(255,255,255,0.18)'/%3E%3Cpath d='M0 210c58-26 104-39 138-39 61 0 103 39 164 39 46 0 105-16 178-49v119H0Z' fill='rgba(255,255,255,0.16)'/%3E%3Ctext x='40' y='126' fill='white' font-size='28' font-family='Segoe UI,sans-serif' font-weight='700'%3ETenant Brand Image%3C/text%3E%3Ctext x='40' y='162' fill='rgba(255,255,255,0.88)' font-size='16' font-family='Segoe UI,sans-serif'%3ESample tenant visual for mock screen%3C/text%3E%3C/svg%3E",
     status: "利用中",
     contractDate: "2026-04-01",
     startDate: "2026-04-15",
@@ -219,14 +223,14 @@ export const mockBootstrap: BootstrapResponse = {
     { id: "NTF-002", title: "計画メンテナンスのお知らせ", type: "メンテナンス", app: "共通", publishedAt: "2026-06-06 15:30", isRead: true, summary: "2026-06-10 22:00 からメンテナンスを実施します。", importance: "高", body: "共通基盤の保守作業に伴い、2026-06-10 22:00 から 2026-06-11 00:00 の間、一部機能が利用しづらくなる可能性があります。", needsAction: true }
   ],
   operationLogs: [
-    { at: "2026-06-07 18:01", userName: "鈴木 一郎", app: "NOVA", feature: "エンドユーザ管理", eventName: "ユーザ登録", result: "成功", targetId: "USR-004" },
-    { at: "2026-06-07 17:25", userName: "佐藤 次郎", app: "共通", feature: "テナント管理", eventName: "テナント更新", result: "成功", targetId: "TEN-001" },
-    { at: "2026-06-07 16:48", userName: "鈴木 一郎", app: "GOM", feature: "認証", eventName: "パスワードリセット", result: "成功", targetId: "USR-003" }
+    { at: "2026-06-07 18:01", userName: "鈴木 一郎", screenName: "エンドユーザ登録", actionName: "ユーザ登録", result: "成功", targetId: "USR-004", detail: "営業本部の利用者を新規登録" },
+    { at: "2026-06-07 17:25", userName: "佐藤 次郎", screenName: "テナント編集", actionName: "テナント更新", result: "成功", targetId: "TEN-001", detail: "テナント名とイメージ画像を更新" },
+    { at: "2026-06-07 16:48", userName: "鈴木 一郎", screenName: "パスワードリセット", actionName: "パスワードリセット", result: "成功", targetId: "USR-003", detail: "対象ユーザへ再設定案内を送信" }
   ],
   loginLogs: [
-    { at: "2026-06-07 18:10", userName: "鈴木 一郎", app: "NOVA", result: "成功", ipAddress: "10.10.1.15", failureReason: "-" },
-    { at: "2026-06-07 17:55", userName: "山田 太郎", app: "GOM", result: "成功", ipAddress: "10.10.1.20", failureReason: "-" },
-    { at: "2026-06-07 17:42", userName: "unknown@example.com", app: "NOVA", result: "失敗", ipAddress: "10.10.9.99", failureReason: "ユーザが存在しません" }
+    { at: "2026-06-07 18:10", userName: "鈴木 一郎", result: "成功", ipAddress: "10.10.1.15", authMethod: "ID/パスワード", clientName: "Chrome / Windows", failureReason: "-" },
+    { at: "2026-06-07 17:55", userName: "山田 太郎", result: "成功", ipAddress: "10.10.1.20", authMethod: "SSO", clientName: "Edge / Windows", failureReason: "-" },
+    { at: "2026-06-07 17:42", userName: "unknown@example.com", result: "失敗", ipAddress: "10.10.9.99", authMethod: "ID/パスワード", clientName: "Chrome / macOS", failureReason: "ユーザが存在しません" }
   ],
   errors: [
     { id: "ERR-1001", at: "2026-06-07 17:40", app: "NOVA", summary: "バッチ連携処理でタイムアウトが発生", severity: "Critical", status: "発生中", firstSeenAt: "2026-06-07 16:55", lastSeenAt: "2026-06-07 17:40", assignment: "運用確認中" },
@@ -240,6 +244,7 @@ export const mockBootstrap: BootstrapResponse = {
     departments: ["営業本部", "情報システム部", "経理部", "管理部"],
     roles: ["一般利用者", "承認者", "管理者"],
     operationTypes: ["ログイン", "ログアウト", "テナント更新", "ユーザ登録", "パスワードリセット", "通知配信"],
+    managementScreens: ["ダッシュボード", "テナント照会", "テナント編集", "エンドユーザ登録", "パスワードリセット", "通知一覧"],
     errorSeverities: ["Critical", "Warning", "Info"],
     errorStatuses: ["発生中", "未対応", "解消済み"]
   }

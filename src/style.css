@@ -92,6 +92,19 @@ label {
   font-weight: 600;
 }
 
+fieldset {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  min-width: 0;
+}
+
+legend {
+  padding: 0 6px;
+  font-weight: 600;
+}
+
 .field-note {
   color: var(--muted);
   font-size: 0.82rem;
@@ -216,15 +229,17 @@ button:hover {
 }
 
 .hero {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  align-items: flex-start;
+  display: block;
   margin-bottom: 20px;
   padding: 24px;
   background: linear-gradient(135deg, rgba(31, 111, 120, 0.1), rgba(255, 255, 255, 0.55));
   border-radius: var(--radius);
   border: 1px solid rgba(31, 111, 120, 0.1);
+}
+
+.hero-copy {
+  display: grid;
+  gap: 14px;
 }
 
 .hero h3 {
@@ -236,6 +251,14 @@ button:hover {
   display: grid;
   grid-template-columns: repeat(2, minmax(140px, 1fr));
   gap: 12px;
+}
+
+.hero-stats-inline {
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+}
+
+.hero-stats.compact .summary-card strong {
+  font-size: 1.2rem;
 }
 
 .summary-card {
@@ -376,6 +399,39 @@ button:hover {
   align-items: start;
 }
 
+.tenant-overview,
+.tenant-edit-panel {
+  margin-bottom: 18px;
+}
+
+.tenant-overview-hero {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: 20px;
+  align-items: center;
+}
+
+.tenant-overview-copy h3 {
+  margin: 8px 0;
+  font-size: 1.8rem;
+}
+
+.tenant-image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 18px;
+  border: 1px solid rgba(31, 111, 120, 0.16);
+  background: #fff;
+}
+
+.tenant-preview {
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
 .contract-meta {
   margin-top: 18px;
 }
@@ -411,9 +467,27 @@ button:hover {
   width: auto;
 }
 
+.checkbox-group {
+  display: grid;
+  gap: 10px;
+  background: #fff;
+}
+
+.checkbox-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
 .form-actions {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.user-register-actions {
+  justify-content: space-between;
+  align-items: center;
 }
 
 .filters {
@@ -595,6 +669,14 @@ th {
 
   .hero {
     display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .hero-stats-inline {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+
+  .tenant-overview-hero {
     grid-template-columns: 1fr;
   }
 

@@ -31,8 +31,7 @@ const uiState = {
 
 const viewMeta: Record<string, { title: string; description: string }> = {
   dashboard: { title: "ダッシュボード", description: "管理状況の要約を確認します。" },
-  "tenant-view": { title: "テナント照会", description: "契約情報と利用状況を確認します。" },
-  "contract-license": { title: "契約/ライセンス利用状況", description: "契約内容、上限数、オプション利用状況を確認します。" },
+  "tenant-view": { title: "テナント照会", description: "契約情報、ライセンス利用状況、テナント基本情報をまとめて確認します。" },
   "tenant-edit": { title: "テナント編集", description: "テナント設定を更新します。" },
   "user-list": { title: "エンドユーザ一覧", description: "登録済みユーザの状態、ロール、利用アプリを確認します。" },
   "user-register": { title: "エンドユーザ登録", description: "新規利用者を登録します。" },
@@ -117,6 +116,24 @@ function bindBaseEvents(): void {
     event.preventDefault();
     state.userName = valueOf("loginId", "モック管理者");
     await loadBootstrap();
+    state.data.loginLogs.unshift({
+      at: nowLabel(),
+      userName: state.userName,
+      result: "成功",
+      ipAddress: "127.0.0.1",
+      authMethod: "ID/パスワード",
+      clientName: "Local Browser / Mock",
+      failureReason: "-"
+    });
+    state.data.operationLogs.unshift({
+      at: nowLabel(),
+      userName: state.userName,
+      screenName: "ログイン",
+      actionName: "ログイン",
+      result: "成功",
+      targetId: "SESSION-CURRENT",
+      detail: "テナント管理画面へログイン"
+    });
     renderAppViews();
     (document.getElementById("currentUserName") as HTMLElement).textContent = state.userName;
     document.getElementById("loginView")?.classList.add("hidden");
@@ -124,6 +141,15 @@ function bindBaseEvents(): void {
   });
 
   logoutButton?.addEventListener("click", () => {
+    state.data.operationLogs.unshift({
+      at: nowLabel(),
+      userName: state.userName,
+      screenName: "ログアウト",
+      actionName: "ログアウト",
+      result: "成功",
+      targetId: "SESSION-CURRENT",
+      detail: "テナント管理画面からログアウト"
+    });
     document.getElementById("appShell")?.classList.add("hidden");
     document.getElementById("loginView")?.classList.remove("hidden");
   });
@@ -148,7 +174,6 @@ function renderAppViews(): void {
   host.innerHTML = `
     <section id="dashboard" class="view active-view"></section>
     <section id="tenant-view" class="view"></section>
-    <section id="contract-license" class="view"></section>
     <section id="tenant-edit" class="view"></section>
     <section id="user-list" class="view"></section>
     <section id="user-register" class="view"></section>
@@ -167,7 +192,6 @@ function renderAppViews(): void {
   renderModeBadge();
   renderDashboard();
   renderTenantView();
-  renderContractLicense();
   renderTenantForm();
   renderUserList();
   renderUserForm();
@@ -199,19 +223,21 @@ function renderDashboard(): void {
   const data = state.data;
   const criticalCount = data.errors.filter((x) => x.severity === "Critical").length;
   const unreadNotifications = data.notifications.filter((x) => !x.isRead).length;
+  const currentLoggedInCount = getCurrentLoggedInCount();
 
   (document.getElementById("dashboard") as HTMLElement).innerHTML = `
     <div class="hero">
-      <div>
+      <div class="hero-copy">
         <div class="eyebrow">OVERVIEW</div>
         <h3>${escapeHtml(data.tenant.name)}</h3>
         <p>${escapeHtml(`${data.tenant.status} | 契約プラン: ${data.tenant.plan} | 現在登録数: ${data.tenant.currentUserCount}`)}</p>
-      </div>
-      <div class="hero-stats">
-        ${summaryCard("現在登録数", `${data.tenant.currentUserCount}`)}
-        ${summaryCard("重大エラー", `${criticalCount}`)}
-        ${summaryCard("未読通知", `${unreadNotifications}`)}
-        ${summaryCard("直近ログイン", `${data.loginLogs.length}`)}
+        <div class="hero-stats hero-stats-inline">
+          ${summaryCard("現在ログイン者数", `${currentLoggedInCount}`)}
+          ${summaryCard("現在登録数", `${data.tenant.currentUserCount}`)}
+          ${summaryCard("重大エラー", `${criticalCount}`)}
+          ${summaryCard("未読通知", `${unreadNotifications}`)}
+          ${summaryCard("直近ログイン", `${data.loginLogs.length}`)}
+        </div>
       </div>
     </div>
     <div class="grid two-col">
@@ -243,6 +269,7 @@ function renderDashboard(): void {
 
 function renderTenantView(): void {
   const tenant = state.data.tenant;
+  const remaining = tenant.userLimit - tenant.currentUserCount;
   const contractDetails = [
     ["テナントID", tenant.id],
     ["テナント名", tenant.name],
@@ -261,8 +288,29 @@ function renderTenantView(): void {
     ["管理者名", tenant.adminName],
     ["管理者メールアドレス", tenant.adminEmail]
   ];
+  const appUsage = state.data.masterData.apps.map((app) => ({
+    app,
+    users: state.data.users.filter((user) => user.apps.includes(app)).length,
+    status: app === "NOVA" ? tenant.novaUsage.statusText : tenant.gomUsage.statusText
+  }));
 
   (document.getElementById("tenant-view") as HTMLElement).innerHTML = `
+    <article class="panel tenant-overview">
+      <div class="tenant-overview-hero">
+        <img src="${escapeHtml(tenant.imageUrl)}" alt="${escapeHtml(tenant.name)} のイメージ画像" class="tenant-image">
+        <div class="tenant-overview-copy">
+          <div class="eyebrow">Tenant Overview</div>
+          <h3>${escapeHtml(tenant.name)}</h3>
+          <p>${escapeHtml(`${tenant.status} | 契約プラン: ${tenant.plan} | 現在登録数: ${tenant.currentUserCount}`)}</p>
+          <div class="hero-stats compact">
+            ${summaryCard("契約プラン", tenant.plan)}
+            ${summaryCard("上限数", `${tenant.userLimit}`)}
+            ${summaryCard("現在登録数", `${tenant.currentUserCount}`)}
+            ${summaryCard("残数", `${remaining}`)}
+          </div>
+        </div>
+      </div>
+    </article>
     <div class="grid two-col tenant-sections">
       <article class="panel">
         <div class="panel-header"><h3>契約情報</h3></div>
@@ -274,51 +322,11 @@ function renderTenantView(): void {
         <div class="panel-header"><h3>利用情報</h3></div>
         <div class="detail-grid">
           ${usageDetails.map(([label, value]) => `<div class="detail-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}
-        </div>
-      </article>
-    </div>
-  `;
-}
-
-function renderTenantForm(): void {
-  const view = document.getElementById("tenant-edit") as HTMLElement;
-  view.innerHTML = `
-    <article class="panel">
-      <div class="panel-header"><h3>テナント情報編集</h3></div>
-      <div class="empty-state">
-        <h4>現在、テナント側で編集できる項目はありません</h4>
-        <p>契約情報および契約ステータスはベンダ側で管理します。利用情報も現時点では照会のみを対象とします。</p>
-      </div>
-    </article>
-  `;
-}
-
-function renderContractLicense(): void {
-  const tenant = state.data.tenant;
-  const remaining = tenant.userLimit - tenant.currentUserCount;
-  const appUsage = state.data.masterData.apps.map((app) => ({
-    app,
-    users: state.data.users.filter((user) => user.apps.includes(app)).length,
-    status: app === "NOVA" ? tenant.novaUsage.statusText : tenant.gomUsage.statusText
-  }));
-
-  (document.getElementById("contract-license") as HTMLElement).innerHTML = `
-    <div class="grid contract-layout">
-      <article class="panel">
-        <div class="panel-header"><h3>契約サマリ</h3></div>
-        <div class="hero-stats">
-          ${summaryCard("契約プラン", tenant.plan)}
-          ${summaryCard("上限数", `${tenant.userLimit}`)}
-          ${summaryCard("現在登録数", `${tenant.currentUserCount}`)}
-          ${summaryCard("残数", `${remaining}`)}
-        </div>
-        <div class="detail-grid contract-meta">
-          <div class="detail-item"><span>契約ステータス</span><strong>${escapeHtml(tenant.status)}</strong></div>
-          <div class="detail-item"><span>ベンダとの契約日</span><strong>${tenant.contractDate}</strong></div>
-          <div class="detail-item"><span>テナント利用開始日</span><strong>${tenant.startDate}</strong></div>
           <div class="detail-item"><span>超過見込み</span><strong>${remaining <= 20 ? "注意" : "問題なし"}</strong></div>
         </div>
       </article>
+    </div>
+    <div class="grid contract-layout tenant-sections">
       <article class="panel">
         <div class="panel-header"><h3>オプション契約</h3></div>
         <div class="list">
@@ -331,33 +339,105 @@ function renderContractLicense(): void {
           `).join("")}
         </div>
       </article>
-    </div>
-    <article class="panel">
-      <div class="panel-header"><h3>アプリ別利用状況</h3></div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>アプリ</th>
-              <th>利用状況</th>
-              <th>利用中ユーザ数</th>
-              <th>登録率</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${appUsage.map((item) => `
+      <article class="panel">
+        <div class="panel-header"><h3>アプリ別利用状況</h3></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
               <tr>
-                <td>${escapeHtml(item.app)}</td>
-                <td>${escapeHtml(item.status)}</td>
-                <td>${item.users}</td>
-                <td>${Math.round((item.users / Math.max(tenant.currentUserCount, 1)) * 100)}%</td>
+                <th>アプリ</th>
+                <th>利用状況</th>
+                <th>利用中ユーザ数</th>
+                <th>登録率</th>
               </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              ${appUsage.map((item) => `
+                <tr>
+                  <td>${escapeHtml(item.app)}</td>
+                  <td>${escapeHtml(item.status)}</td>
+                  <td>${item.users}</td>
+                  <td>${Math.round((item.users / Math.max(tenant.currentUserCount, 1)) * 100)}%</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  `;
+}
+
+function renderTenantForm(): void {
+  const tenant = state.data.tenant;
+  const view = document.getElementById("tenant-edit") as HTMLElement;
+  view.innerHTML = `
+    <article class="panel tenant-edit-panel">
+      <div class="panel-header"><h3>テナント情報編集</h3></div>
+      <form id="tenantEditForm" class="stacked-form two-up">
+        ${inputField("tenantName", "テナント名", "text", tenant.name)}
+        <label>
+          <span>イメージ画像URL</span>
+          <input id="tenantImageUrl" type="url" value="${escapeHtml(tenant.imageUrl)}" placeholder="https://example.com/image.png">
+        </label>
+        <label class="full">
+          <span>イメージ画像アップロード</span>
+          <input id="tenantImageFile" type="file" accept="image/*">
+          <small class="field-note">画像を選択するとプレビューへ反映されます。URL入力とアップロードのどちらでも更新できます。</small>
+        </label>
+        <div class="tenant-preview full">
+          <img id="tenantImagePreview" src="${escapeHtml(tenant.imageUrl)}" alt="${escapeHtml(tenant.name)} のイメージ画像プレビュー" class="tenant-image">
+        </div>
+        <div class="form-actions full">
+          <button type="submit" class="primary">更新</button>
+        </div>
+      </form>
     </article>
   `;
+
+  const imageUrlInput = document.getElementById("tenantImageUrl") as HTMLInputElement;
+  const imagePreview = document.getElementById("tenantImagePreview") as HTMLImageElement;
+  const imageFileInput = document.getElementById("tenantImageFile") as HTMLInputElement;
+
+  imageUrlInput.oninput = () => {
+    imagePreview.src = imageUrlInput.value || tenant.imageUrl;
+  };
+
+  imageFileInput.onchange = () => {
+    const file = imageFileInput.files?.[0];
+    if (!file) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      if (!result) {
+        return;
+      }
+      imageUrlInput.value = result;
+      imagePreview.src = result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  (document.getElementById("tenantEditForm") as HTMLFormElement).onsubmit = (event) => {
+    event.preventDefault();
+    state.data.tenant.name = valueOf("tenantName", tenant.name);
+    state.data.tenant.imageUrl = valueOf("tenantImageUrl", tenant.imageUrl) || tenant.imageUrl;
+    state.data.tenant.updatedAt = nowLabel();
+    state.data.tenant.updatedBy = state.userName;
+    state.data.operationLogs.unshift({
+      at: state.data.tenant.updatedAt,
+      userName: state.userName,
+      screenName: "テナント編集",
+      actionName: "テナント更新",
+      result: "成功",
+      targetId: state.data.tenant.id,
+      detail: "テナント名またはイメージ画像を更新"
+    });
+    showFlash("テナント情報を更新しました。");
+    rerenderAfterMutation();
+  };
 }
 
 function renderUserList(): void {
@@ -432,7 +512,17 @@ function renderUserForm(): void {
         ${inputField("userName", "名前", "text", "")}
         ${selectField("userDepartment", "部署等の所属", data.masterData.departments, data.masterData.departments[0])}
         ${inputField("userTitle", "役職", "text", "")}
-        ${selectField("userApp", "利用アプリ", data.masterData.apps, data.masterData.apps[0])}
+        <fieldset class="checkbox-group">
+          <legend>利用アプリ</legend>
+          <div class="checkbox-options">
+            ${data.masterData.apps.map((app, index) => `
+              <label class="checkbox">
+                <input id="userApp-${index}" name="userApps" type="checkbox" value="${escapeHtml(app)}" ${index === 0 ? "checked" : ""}>
+                <span>${escapeHtml(app)}</span>
+              </label>
+            `).join("")}
+          </div>
+        </fieldset>
         ${selectField("userRole", "権限、ロール", data.masterData.roles, data.masterData.roles[0])}
         <label>
           <span>登録通知送信有無</span>
@@ -441,10 +531,29 @@ function renderUserForm(): void {
             <option value="false">送信しない</option>
           </select>
         </label>
-        <div class="form-actions full"><button type="submit" class="primary">登録</button></div>
+        <input id="userCsvFile" type="file" accept=".csv,text/csv" class="hidden">
+        <div class="form-actions full user-register-actions">
+          <button type="button" class="primary" id="userCsvImportButton">CSV</button>
+          <button type="submit" class="primary">登録</button>
+        </div>
       </form>
     </article>
   `;
+
+  (document.getElementById("userCsvImportButton") as HTMLButtonElement).onclick = () => {
+    (document.getElementById("userCsvFile") as HTMLInputElement).click();
+  };
+  (document.getElementById("userCsvFile") as HTMLInputElement).onchange = async (event) => {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) {
+      return;
+    }
+    const importedCount = await importUsersFromCsv(file);
+    if (importedCount > 0) {
+      rerenderAfterMutation();
+    }
+    (event.target as HTMLInputElement).value = "";
+  };
 
   (document.getElementById("userForm") as HTMLFormElement).onsubmit = async (event) => {
     event.preventDefault();
@@ -453,10 +562,15 @@ function renderUserForm(): void {
       name: valueOf("userName"),
       department: valueOf("userDepartment"),
       title: valueOf("userTitle"),
-      apps: [valueOf("userApp")],
+      apps: selectedValuesOf("userApps"),
       role: valueOf("userRole"),
       sendNotification: valueOf("userSendNotification") === "true"
     };
+
+    if (payload.apps.length === 0) {
+      showFlash("利用アプリを1つ以上選択してください。", true);
+      return;
+    }
 
     if (state.backendAvailable) {
       const response = await fetch("/api/users/register", {
@@ -470,7 +584,7 @@ function renderUserForm(): void {
       await loadBootstrap();
     } else {
       const newUser: UserDto = {
-        id: `USR-${String(state.data.users.length + 1).padStart(3, "0")}`,
+        id: nextUserId(),
         name: payload.name,
         email: payload.email,
         department: payload.department,
@@ -487,11 +601,11 @@ function renderUserForm(): void {
       state.data.operationLogs.unshift({
         at: nowLabel(),
         userName: state.userName,
-        app: payload.apps[0],
-        feature: "エンドユーザ管理",
-        eventName: "ユーザ登録",
+        screenName: "エンドユーザ登録",
+        actionName: "ユーザ登録",
         result: "成功",
-        targetId: newUser.id
+        targetId: newUser.id,
+        detail: `${newUser.name} を登録 (${newUser.apps.join(", ")})`
       });
       showFlash("フロントモック上でユーザを登録しました。");
     }
@@ -563,11 +677,11 @@ function renderResetForm(): void {
       state.data.operationLogs.unshift({
         at: nowLabel(),
         userName: state.userName,
-        app: user.apps[0] ?? "共通",
-        feature: "認証",
-        eventName: "パスワードリセット",
+        screenName: "パスワードリセット",
+        actionName: "パスワードリセット",
         result: "成功",
-        targetId: user.id
+        targetId: user.id,
+        detail: `${user.name} へ再設定案内を送信`
       });
       showFlash("フロントモック上でパスワードリセットを受け付けました。");
     }
@@ -769,11 +883,11 @@ function renderWizardModal(): void {
     state.data.operationLogs.unshift({
       at: nowLabel(),
       userName: state.userName,
-      app: "NOVA",
-      feature: "通知",
-      eventName: "AI需要予測 初期設定ウィザード完了",
+      screenName: "通知一覧",
+      actionName: "通知対応",
       result: "成功",
-      targetId: "NTF-003"
+      targetId: "NTF-003",
+      detail: "AI需要予測 初期設定ウィザードを完了"
     });
     const target = state.data.notifications.find((item) => item.id === "NTF-003");
     if (target) {
@@ -953,12 +1067,12 @@ function renderOperationLogs(): void {
     <article class="panel">
       <div class="panel-header"><h3>操作ログ</h3></div>
       <div class="filters">
-        ${selectField("operationAppFilter", "対象アプリ", ["すべて", ...state.data.masterData.apps, "共通"], "すべて")}
-        ${selectField("operationTypeFilter", "イベント種別", ["すべて", ...state.data.masterData.operationTypes], "すべて")}
+        ${selectField("operationScreenFilter", "対象画面", ["すべて", ...state.data.masterData.managementScreens, "ログイン", "ログアウト"], "すべて")}
+        ${selectField("operationTypeFilter", "操作種別", ["すべて", ...state.data.masterData.operationTypes, "通知対応"], "すべて")}
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>操作日時</th><th>操作者</th><th>対象アプリ</th><th>対象機能</th><th>イベント</th><th>結果</th><th>対象ID</th></tr></thead>
+          <thead><tr><th>操作日時</th><th>操作者</th><th>対象画面</th><th>操作種別</th><th>対象ID</th><th>結果</th><th>操作内容</th></tr></thead>
           <tbody id="operationLogsBody"></tbody>
         </table>
       </div>
@@ -970,12 +1084,12 @@ function renderOperationLogs(): void {
 }
 
 function fillOperationLogRows(): void {
-  const appFilter = valueOf("operationAppFilter", "すべて");
+  const screenFilter = valueOf("operationScreenFilter", "すべて");
   const typeFilter = valueOf("operationTypeFilter", "すべて");
   (document.getElementById("operationLogsBody") as HTMLElement).innerHTML = state.data.operationLogs
-    .filter((x) => appFilter === "すべて" || x.app === appFilter)
-    .filter((x) => typeFilter === "すべて" || x.eventName === typeFilter)
-    .map((x) => `<tr><td>${x.at}</td><td>${escapeHtml(x.userName)}</td><td>${escapeHtml(x.app)}</td><td>${escapeHtml(x.feature)}</td><td>${escapeHtml(x.eventName)}</td><td>${escapeHtml(x.result)}</td><td>${escapeHtml(x.targetId)}</td></tr>`)
+    .filter((x) => screenFilter === "すべて" || x.screenName === screenFilter)
+    .filter((x) => typeFilter === "すべて" || x.actionName === typeFilter)
+    .map((x) => `<tr><td>${x.at}</td><td>${escapeHtml(x.userName)}</td><td>${escapeHtml(x.screenName)}</td><td>${escapeHtml(x.actionName)}</td><td>${escapeHtml(x.targetId)}</td><td>${escapeHtml(x.result)}</td><td>${escapeHtml(x.detail)}</td></tr>`)
     .join("");
 }
 
@@ -984,12 +1098,12 @@ function renderLoginLogs(): void {
     <article class="panel">
       <div class="panel-header"><h3>ログインログ</h3></div>
       <div class="filters">
-        ${selectField("loginAppFilter", "対象アプリ", ["すべて", ...state.data.masterData.apps], "すべて")}
         ${selectField("loginResultFilter", "結果", ["すべて", "成功", "失敗"], "すべて")}
+        ${selectField("loginAuthMethodFilter", "認証方式", ["すべて", "ID/パスワード", "SSO"], "すべて")}
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>ログイン日時</th><th>ユーザ名</th><th>対象アプリ</th><th>結果</th><th>IPアドレス</th><th>失敗理由</th></tr></thead>
+          <thead><tr><th>ログイン日時</th><th>ユーザ名</th><th>結果</th><th>認証方式</th><th>接続元</th><th>IPアドレス</th><th>失敗理由</th></tr></thead>
           <tbody id="loginLogsBody"></tbody>
         </table>
       </div>
@@ -1001,12 +1115,12 @@ function renderLoginLogs(): void {
 }
 
 function fillLoginLogRows(): void {
-  const appFilter = valueOf("loginAppFilter", "すべて");
   const resultFilter = valueOf("loginResultFilter", "すべて");
+  const authMethodFilter = valueOf("loginAuthMethodFilter", "すべて");
   (document.getElementById("loginLogsBody") as HTMLElement).innerHTML = state.data.loginLogs
-    .filter((x) => appFilter === "すべて" || x.app === appFilter)
     .filter((x) => resultFilter === "すべて" || x.result === resultFilter)
-    .map((x) => `<tr><td>${x.at}</td><td>${escapeHtml(x.userName)}</td><td>${escapeHtml(x.app)}</td><td>${escapeHtml(x.result)}</td><td>${escapeHtml(x.ipAddress)}</td><td>${escapeHtml(x.failureReason)}</td></tr>`)
+    .filter((x) => authMethodFilter === "すべて" || x.authMethod === authMethodFilter)
+    .map((x) => `<tr><td>${x.at}</td><td>${escapeHtml(x.userName)}</td><td>${escapeHtml(x.result)}</td><td>${escapeHtml(x.authMethod)}</td><td>${escapeHtml(x.clientName)}</td><td>${escapeHtml(x.ipAddress)}</td><td>${escapeHtml(x.failureReason)}</td></tr>`)
     .join("");
 }
 
@@ -1048,7 +1162,6 @@ function rerenderAfterMutation(): void {
   renderModeBadge();
   renderDashboard();
   renderTenantView();
-  renderContractLicense();
   renderTenantForm();
   renderUserList();
   renderUserForm();
@@ -1104,6 +1217,11 @@ function valueOf(id: string, fallback = ""): string {
   return element?.value ?? fallback;
 }
 
+function selectedValuesOf(name: string): string[] {
+  return Array.from(document.querySelectorAll<HTMLInputElement>(`input[name="${name}"]:checked`))
+    .map((element) => element.value);
+}
+
 function showFlash(message: string, isError = false): void {
   const flash = document.getElementById("flashMessage") as HTMLElement;
   flash.textContent = message;
@@ -1123,6 +1241,137 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
+async function importUsersFromCsv(file: File): Promise<number> {
+  const text = await file.text();
+  const rows = parseCsv(text);
+  if (rows.length < 2) {
+    showFlash("CSVに登録データがありません。", true);
+    return 0;
+  }
+
+  const headerMap = rows[0].map((header) => normalizeCsvHeader(header));
+  const importedUsers: UserDto[] = [];
+
+  for (const [index, row] of rows.slice(1).entries()) {
+    if (row.every((cell) => cell.trim() === "")) {
+      continue;
+    }
+    const user = buildUserFromCsvRow(headerMap, row, index);
+    if (!user) {
+      continue;
+    }
+    importedUsers.push(user);
+  }
+
+  if (importedUsers.length === 0) {
+    showFlash("CSVの列名またはデータ形式を確認してください。", true);
+    return 0;
+  }
+
+  state.data.users.unshift(...importedUsers.reverse());
+  state.data.tenant.currentUserCount += importedUsers.length;
+  state.data.tenant.updatedAt = nowLabel();
+  state.data.tenant.updatedBy = state.userName;
+  state.data.operationLogs.unshift({
+    at: state.data.tenant.updatedAt,
+    userName: state.userName,
+    screenName: "エンドユーザ登録",
+    actionName: "ユーザ登録",
+    result: "成功",
+    targetId: `${importedUsers.length}件(CSV)`,
+    detail: "CSV一括取込でエンドユーザを登録"
+  });
+  showFlash(`CSVから ${importedUsers.length} 件のユーザを登録しました。`);
+  return importedUsers.length;
+}
+
+function buildUserFromCsvRow(headers: string[], row: string[], offset: number): UserDto | null {
+  const getValue = (...keys: string[]) => {
+    for (const key of keys) {
+      const index = headers.indexOf(key);
+      if (index >= 0) {
+        return row[index]?.trim() ?? "";
+      }
+    }
+    return "";
+  };
+
+  const email = getValue("email", "mail", "メールアドレス");
+  const name = getValue("name", "名前");
+  if (!email || !name) {
+    return null;
+  }
+
+  const app = getValue("app", "利用アプリ") || state.data.masterData.apps[0];
+  const role = getValue("role", "権限", "ロール") || state.data.masterData.roles[0];
+
+  return {
+    id: nextUserId(offset),
+    name,
+    email,
+    department: getValue("department", "部署", "departmentname") || state.data.masterData.departments[0],
+    title: getValue("title", "役職"),
+    apps: [app],
+    role,
+    active: true,
+    lastLoginAt: "-",
+    createdAt: nowLabel().slice(0, 10),
+    lastPasswordResetAt: "-"
+  };
+}
+
+function normalizeCsvHeader(value: string): string {
+  return value.trim().toLowerCase().replaceAll(" ", "");
+}
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let current = "";
+  let row: string[] = [];
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (char === "\"") {
+      if (inQuotes && next === "\"") {
+        current += "\"";
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      row.push(current);
+      current = "";
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && next === "\n") {
+        index += 1;
+      }
+      row.push(current);
+      rows.push(row);
+      row = [];
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.length > 0 || row.length > 0) {
+    row.push(current);
+    rows.push(row);
+  }
+
+  return rows;
+}
+
 function nowLabel(): string {
   const now = new Date();
   const yyyy = now.getFullYear();
@@ -1131,6 +1380,23 @@ function nowLabel(): string {
   const hh = String(now.getHours()).padStart(2, "0");
   const mi = String(now.getMinutes()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+}
+
+function nextUserId(offset = 0): string {
+  const maxId = state.data.users.reduce((max, user) => {
+    const numeric = Number(user.id.replace("USR-", ""));
+    return Number.isFinite(numeric) ? Math.max(max, numeric) : max;
+  }, 0);
+  return `USR-${String(maxId + 1 + offset).padStart(3, "0")}`;
+}
+
+function getCurrentLoggedInCount(): number {
+  return new Set(
+    state.data.loginLogs
+      .filter((log) => log.result === "成功")
+      .map((log) => log.userName)
+      .filter((userName) => userName && userName !== "unknown@example.com")
+  ).size;
 }
 
 function groupPermissionsByCategory(permissions: PermissionDto[]): Record<string, PermissionDto[]> {
